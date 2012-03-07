@@ -32,6 +32,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Tweet Face
+ * (C) Mark L. Chang, 2012
+ * Clipart provided by http://openclipart.org/detail/37063/visage-by-antoine-37063
+ *
+ * Tweets your face. Seriously.
+ */
 public class MainActivity extends Activity {
     public static final String TAG = "TWEETFACE";
     public static final int TWEET_MAX_LENGTH = 119;
