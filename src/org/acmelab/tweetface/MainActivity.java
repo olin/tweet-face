@@ -1,8 +1,11 @@
 package org.acmelab.tweetface;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
@@ -11,9 +14,17 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import twitter4j.Twitter;
+import twitter4j.TwitterException;
+import twitter4j.TwitterFactory;
+import twitter4j.auth.AccessToken;
+import twitter4j.auth.RequestToken;
+import twitter4j.conf.Configuration;
+import twitter4j.conf.ConfigurationBuilder;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -31,17 +42,23 @@ public class MainActivity extends Activity {
 
     private EditText tweetText;
     private TextView tweetLength;
+    private Button twitterStatus;
+
+    private static Twitter twitter;
+    private static RequestToken requestToken;
+    private static SharedPreferences mSharedPreferences;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
-        Log.e(TAG, "CREATE");
         Util.makeDirs();
 
+        mSharedPreferences = getSharedPreferences(Const.PREFERENCE_NAME, MODE_PRIVATE);
         tweetText = (EditText)findViewById(R.id.tweetText);
         tweetLength = (TextView)findViewById(R.id.tweetLength);
+        twitterStatus = (Button)findViewById(R.id.twitterStatus);
 
         tweetText.addTextChangedListener(tweetTextWatcher);
     }
@@ -50,6 +67,32 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
+        /**
+         * Handle OAuth Callback
+         */
+        Uri uri = getIntent().getData();
+        if (uri != null && uri.toString().startsWith(Const.CALLBACK_URL)) {
+            String verifier = uri.getQueryParameter(Const.IEXTRA_OAUTH_VERIFIER);
+            try {
+                AccessToken accessToken = twitter.getOAuthAccessToken(requestToken, verifier);
+                SharedPreferences.Editor e = mSharedPreferences.edit();
+                e.putString(Const.PREF_KEY_TOKEN, accessToken.getToken());
+                e.putString(Const.PREF_KEY_SECRET, accessToken.getTokenSecret());
+                e.commit();
+                Toast.makeText(this, "Twitter connected!", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+                Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+
+        if(isConnected()) {
+            twitterStatus.setText("Disconnect Twitter");
+        } else {
+            twitterStatus.setText("Connect Twitter");
+        }
+
+        // start camera
         preview = (SurfaceView) findViewById(R.id.cameraPreview);
         SurfaceHolder previewHolder = preview.getHolder();
         previewHolder.removeCallback(surfaceCallback);
@@ -74,19 +117,68 @@ public class MainActivity extends Activity {
         }
     }
 
-    public void clickTweet(View view) {
-        Log.e(TAG, "Tweeting and taking picture");
+    /**
+     * check if the account is authorized
+     * @return
+     */
+    private boolean isConnected() {
+        return mSharedPreferences.getString(Const.PREF_KEY_TOKEN, null) != null;
+    }
 
-        if (Util.isOnline(this)) {
-            if (camera != null && inPreview && !takingPicture) {
-                Log.e(TAG, "Taking picture");
-                takingPicture = true;
-                camera.autoFocus(autoFocusCallback);
+    public void clickTweet(View view) {
+        if (isConnected()) {
+            if (Util.isOnline(this)) {
+                if (camera != null && inPreview && !takingPicture) {
+                    takingPicture = true;
+                    camera.autoFocus(autoFocusCallback);
+                }
+            } else {
+                Toast.makeText(this, getString(R.string.no_internet), Toast.LENGTH_LONG).show();
             }
+
         } else {
-            Toast.makeText(this, getString(R.string.no_internet), Toast.LENGTH_LONG).show();
+            // trigger authentication
+            askOAuth();
         }
     }
+
+    private void askOAuth() {
+        ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
+        configurationBuilder.setOAuthConsumerKey(Const.CONSUMER_KEY);
+        configurationBuilder.setOAuthConsumerSecret(Const.CONSUMER_SECRET);
+        Configuration configuration = configurationBuilder.build();
+        twitter = new TwitterFactory(configuration).getInstance();
+
+        try {
+            requestToken = twitter.getOAuthRequestToken(Const.CALLBACK_URL);
+            Toast.makeText(this, "Please authorize this app!", Toast.LENGTH_LONG).show();
+            this.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(requestToken.getAuthenticationURL())));
+        } catch (TwitterException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Remove Token, Secret from preferences
+     */
+    private void disconnectTwitter() {
+        SharedPreferences.Editor editor = mSharedPreferences.edit();
+        editor.remove(Const.PREF_KEY_TOKEN);
+        editor.remove(Const.PREF_KEY_SECRET);
+
+        editor.commit();
+    }
+    
+    public void clickTwitterConnect(View view) {
+        if(isConnected()) {
+            disconnectTwitter();
+            Toast.makeText(this, "Twitter disconnected", Toast.LENGTH_SHORT).show();
+            twitterStatus.setText("Connect Twitter.");
+        } else {
+            askOAuth();
+        }
+    }
+
 
     private int getFrontCameraId() {
         Camera.CameraInfo ci = new Camera.CameraInfo();
@@ -99,7 +191,6 @@ public class MainActivity extends Activity {
 
 
     private void initCamera() {
-        Log.i(TAG, "Initializing camera");
         try {
             if (camera == null) {
                 int index = getFrontCameraId();
@@ -141,7 +232,7 @@ public class MainActivity extends Activity {
         }
 
         public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            tweetLength.setText( String.valueOf(TWEET_MAX_LENGTH - charSequence.length()) );
+            tweetLength.setText(String.valueOf(TWEET_MAX_LENGTH - charSequence.length()));
         }
 
         public void afterTextChanged(Editable editable) {
@@ -152,7 +243,6 @@ public class MainActivity extends Activity {
     Camera.AutoFocusCallback autoFocusCallback = new Camera.AutoFocusCallback() {
         public void onAutoFocus(boolean b, Camera camera) {
             if (takingPicture) {
-                Log.e(TAG, "Now, actually taking picture");
                 camera.takePicture(null, null, photoCallback);
                 inPreview = false;
                 takingPicture = false;
@@ -162,8 +252,7 @@ public class MainActivity extends Activity {
 
     Camera.PictureCallback photoCallback = new Camera.PictureCallback() {
         public void onPictureTaken(byte[] data, Camera camera) {
-            Log.i(TAG, "Saving photo");
-            new SavePhotoTask().execute(data);
+            new SavePhotoTweetTask().execute(data);
             finish();
         }
     };
@@ -211,7 +300,6 @@ public class MainActivity extends Activity {
         }
 
         public void surfaceDestroyed(SurfaceHolder holder) {
-            Log.i(TAG, "Surface getting destroyed");
             if (inPreview) {
                 camera.stopPreview();
             }
@@ -224,24 +312,34 @@ public class MainActivity extends Activity {
         }
     };
 
-    private class SavePhotoTask extends AsyncTask<byte[], Void, Void> {
+    private class SavePhotoTweetTask extends AsyncTask<byte[], Void, Void> {
         @Override
         protected Void doInBackground(byte[]... jpeg) {
+            // set up twitter
+            String oauthAccessToken = mSharedPreferences.getString(Const.PREF_KEY_TOKEN, "");
+            String oAuthAccessTokenSecret = mSharedPreferences.getString(Const.PREF_KEY_SECRET, "");
+
+            ConfigurationBuilder confbuilder = new ConfigurationBuilder();
+            Configuration conf = confbuilder
+                    .setOAuthConsumerKey(Const.CONSUMER_KEY)
+                    .setOAuthConsumerSecret(Const.CONSUMER_SECRET)
+                    .setOAuthAccessToken(oauthAccessToken)
+                    .setOAuthAccessTokenSecret(oAuthAccessTokenSecret)
+                    .build();
+
+            // save file
             File photo = Util.getTempFile();
-
-            if (photo.exists()) {
-                photo.delete();
-            }
-
+            if (photo.exists()) photo.delete();
             try {
                 FileOutputStream fos = new FileOutputStream(photo.getPath());
-
                 fos.write(jpeg[0]);
                 fos.close();
             }
             catch (java.io.IOException e) {
                 Log.e("PictureDemo", "Exception in photoCallback", e);
             }
+
+            // tweet this with media
 
             return null;
         }
