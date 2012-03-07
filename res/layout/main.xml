@@ -15,16 +15,34 @@
             android:layout_margin="10dp"
             />
 
-    <Button
-            android:id="@+id/tweetButton"
+
+    <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="fill_parent"
             android:layout_height="wrap_content"
-            android:layout_width="wrap_content"
-            android:text="Tweet My Face"
-            android:layout_gravity="right"
+            >
+        <TextView
+            android:id="@+id/tweetLength"
+            android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_marginLeft="10dp"
             android:layout_marginRight="10dp"
-            android:onClick="clickTweet"
+            android:text="119"
+            android:textSize="22sp"
             />
+        <Button
+                android:id="@+id/tweetButton"
+                android:layout_height="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:text="Tweet My Face"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp"
+                android:onClick="clickTweet"
+                />
+    </LinearLayout>
+
 
     <SurfaceView
             android:id="@+id/cameraPreview"

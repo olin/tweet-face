@@ -5,10 +5,14 @@ import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
@@ -18,11 +22,15 @@ import java.util.List;
 
 public class MainActivity extends Activity {
     public static final String TAG = "TWEETFACE";
+    public static final int TWEET_MAX_LENGTH = 119;
 
     private Camera camera;
     private SurfaceView preview;
     private boolean inPreview = false;
     private boolean takingPicture = false;
+
+    private EditText tweetText;
+    private TextView tweetLength;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -32,6 +40,10 @@ public class MainActivity extends Activity {
         Log.e(TAG, "CREATE");
         Util.makeDirs();
 
+        tweetText = (EditText)findViewById(R.id.tweetText);
+        tweetLength = (TextView)findViewById(R.id.tweetLength);
+
+        tweetText.addTextChangedListener(tweetTextWatcher);
     }
 
     @Override
@@ -123,6 +135,19 @@ public class MainActivity extends Activity {
         return(result);
     }
 
+    private final TextWatcher tweetTextWatcher = new TextWatcher() {
+        public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+
+        }
+
+        public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+            tweetLength.setText( String.valueOf(TWEET_MAX_LENGTH - charSequence.length()) );
+        }
+
+        public void afterTextChanged(Editable editable) {
+
+        }
+    };
 
     Camera.AutoFocusCallback autoFocusCallback = new Camera.AutoFocusCallback() {
         public void onAutoFocus(boolean b, Camera camera) {
