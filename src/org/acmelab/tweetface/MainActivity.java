@@ -18,6 +18,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import twitter4j.StatusUpdate;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
@@ -43,6 +44,7 @@ public class MainActivity extends Activity {
     private EditText tweetText;
     private TextView tweetLength;
     private Button twitterStatus;
+    private Button tweetButton;
 
     private static Twitter twitter;
     private static RequestToken requestToken;
@@ -59,6 +61,7 @@ public class MainActivity extends Activity {
         tweetText = (EditText)findViewById(R.id.tweetText);
         tweetLength = (TextView)findViewById(R.id.tweetLength);
         twitterStatus = (Button)findViewById(R.id.twitterStatus);
+        tweetButton = (Button)findViewById(R.id.tweetButton);
 
         tweetText.addTextChangedListener(tweetTextWatcher);
     }
@@ -128,9 +131,15 @@ public class MainActivity extends Activity {
     public void clickTweet(View view) {
         if (isConnected()) {
             if (Util.isOnline(this)) {
-                if (camera != null && inPreview && !takingPicture) {
-                    takingPicture = true;
-                    camera.autoFocus(autoFocusCallback);
+                if (tweetText.length() <= TWEET_MAX_LENGTH && tweetText.length() > 0) {
+                    if (camera != null && inPreview && !takingPicture) {
+                        takingPicture = true;
+                        camera.autoFocus(autoFocusCallback);
+                    }
+                } else if(tweetText.length() == 0) {
+                    Toast.makeText(this, "Tweet something at least!", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Tweet too long!", Toast.LENGTH_SHORT).show();
                 }
             } else {
                 Toast.makeText(this, getString(R.string.no_internet), Toast.LENGTH_LONG).show();
@@ -233,6 +242,11 @@ public class MainActivity extends Activity {
 
         public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
             tweetLength.setText(String.valueOf(TWEET_MAX_LENGTH - charSequence.length()));
+            if(charSequence.length() > TWEET_MAX_LENGTH) {
+                tweetButton.setEnabled(false);
+            } else {
+                tweetButton.setEnabled(true);
+            }
         }
 
         public void afterTextChanged(Editable editable) {
@@ -245,7 +259,7 @@ public class MainActivity extends Activity {
             if (takingPicture) {
                 camera.takePicture(null, null, photoCallback);
                 inPreview = false;
-                takingPicture = false;
+                takingPicture = true;
             }
         }
     };
@@ -253,7 +267,9 @@ public class MainActivity extends Activity {
     Camera.PictureCallback photoCallback = new Camera.PictureCallback() {
         public void onPictureTaken(byte[] data, Camera camera) {
             new SavePhotoTweetTask().execute(data);
-            finish();
+            Toast.makeText(MainActivity.this, "Tweeting in the background", Toast.LENGTH_SHORT).show();
+            camera.startPreview();
+            inPreview = true;
         }
     };
 
@@ -312,9 +328,33 @@ public class MainActivity extends Activity {
         }
     };
 
-    private class SavePhotoTweetTask extends AsyncTask<byte[], Void, Void> {
+    private class SavePhotoTweetTask extends AsyncTask<byte[], Void, Boolean> {
         @Override
-        protected Void doInBackground(byte[]... jpeg) {
+        protected void onPostExecute(Boolean result) {
+            takingPicture = false;
+            
+            if(result) {
+                tweetText.setText("");
+            } else {
+                Toast.makeText(MainActivity.this, "Error Tweeting. Try again in a few moments.", Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        @Override
+        protected Boolean doInBackground(byte[]... jpeg) {
+            // save file
+            File photo = Util.getTempFile();
+            if (photo.exists()) photo.delete();
+            try {
+                FileOutputStream fos = new FileOutputStream(photo.getPath());
+                fos.write(jpeg[0]);
+                fos.close();
+            }
+            catch (java.io.IOException e) {
+                Log.e(TAG, "Exception in photoCallback", e);
+                return false;
+            }
+
             // set up twitter
             String oauthAccessToken = mSharedPreferences.getString(Const.PREF_KEY_TOKEN, "");
             String oAuthAccessTokenSecret = mSharedPreferences.getString(Const.PREF_KEY_SECRET, "");
@@ -327,21 +367,20 @@ public class MainActivity extends Activity {
                     .setOAuthAccessTokenSecret(oAuthAccessTokenSecret)
                     .build();
 
-            // save file
-            File photo = Util.getTempFile();
-            if (photo.exists()) photo.delete();
+            // tweet text with media
             try {
-                FileOutputStream fos = new FileOutputStream(photo.getPath());
-                fos.write(jpeg[0]);
-                fos.close();
-            }
-            catch (java.io.IOException e) {
-                Log.e("PictureDemo", "Exception in photoCallback", e);
+                String tweet = tweetText.getText().toString();
+                Twitter twitter = new TwitterFactory(conf).getInstance();
+                StatusUpdate statusUpdate = new StatusUpdate(tweet);
+                statusUpdate.setMedia(Util.getTempFile());
+                twitter.updateStatus(statusUpdate);
+            } catch (TwitterException e) {
+                Log.e(TAG, "Error updating Twitter status", e);
+                e.printStackTrace();
+                return false;
             }
 
-            // tweet this with media
-
-            return null;
+            return true;
         }
     }
 
