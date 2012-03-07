@@ -173,7 +173,7 @@ public class MainActivity extends Activity {
         if(isConnected()) {
             disconnectTwitter();
             Toast.makeText(this, "Twitter disconnected", Toast.LENGTH_SHORT).show();
-            twitterStatus.setText("Connect Twitter.");
+            twitterStatus.setText("Connect Twitter");
         } else {
             askOAuth();
         }
