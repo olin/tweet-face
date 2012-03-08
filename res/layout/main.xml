@@ -40,7 +40,7 @@
                 android:layout_height="wrap_content"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:text="Tweet My Face"
+                android:text="Tweet"
                 android:layout_marginLeft="10dp"
                 android:layout_marginRight="10dp"
                 android:onClick="clickTweet"
