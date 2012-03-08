@@ -1,6 +1,5 @@
 package org.acmelab.tweetface;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.ImageFormat;
@@ -77,9 +76,7 @@ public class MainActivity extends FragmentActivity {
 
         handleOAuth();
 
-        // invalidate Menu for Android 3.0
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
-            invalidateOptionsMenu();
+        invalidateOptionsMenu();
 
         // start camera
         preview = (SurfaceView) findViewById(R.id.cameraPreview);
@@ -107,14 +104,14 @@ public class MainActivity extends FragmentActivity {
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
+    public boolean onCreateOptionsMenu(android.support.v4.view.Menu menu) {
         MenuInflater menuInflater = getMenuInflater();
         menuInflater.inflate(R.menu.main, menu);
         return true;
     }
 
     @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
+    public boolean onPrepareOptionsMenu(android.support.v4.view.Menu menu) {
         MenuItem loginItem = menu.findItem(R.id.menu_login);
         MenuItem logoutItem = menu.findItem(R.id.menu_logout);
 
@@ -134,7 +131,7 @@ public class MainActivity extends FragmentActivity {
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
+    public boolean onOptionsItemSelected(android.support.v4.view.MenuItem item) {
         switch(item.getItemId()) {
             case R.id.menu_login:
                 askOAuth();
@@ -210,11 +207,14 @@ public class MainActivity extends FragmentActivity {
 
         try {
             requestToken = twitter.getOAuthRequestToken(Const.CALLBACK_URL);
-            Toast.makeText(this, "Please authorize this app!", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Please authorize this app!", Toast.LENGTH_SHORT).show();
             this.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(requestToken.getAuthenticationURL())));
         } catch (TwitterException e) {
             e.printStackTrace();
         }
+
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
+            invalidateOptionsMenu();
     }
 
     /**
@@ -226,6 +226,8 @@ public class MainActivity extends FragmentActivity {
         editor.remove(Const.PREF_KEY_SECRET);
 
         editor.commit();
+
+        invalidateOptionsMenu();
     }
     
     private int getFrontCameraId() {
