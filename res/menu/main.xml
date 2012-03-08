@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/menu_login"
+          android:icon="@drawable/ic_menu_login"
+          android:showAsAction="withText"
+          android:title="Login"/>
+    <item android:id="@+id/menu_logout"
+          android:icon="@drawable/ic_menu_logout"
+          android:showAsAction="withText"
+          android:title="Logout"/>
 
 </menu>

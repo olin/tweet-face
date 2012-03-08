@@ -7,13 +7,12 @@ import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
-import android.view.View;
+import android.view.*;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -50,7 +49,6 @@ public class MainActivity extends Activity {
 
     private EditText tweetText;
     private TextView tweetLength;
-    private Button twitterStatus;
     private Button tweetButton;
 
     private static Twitter twitter;
@@ -67,7 +65,6 @@ public class MainActivity extends Activity {
         mSharedPreferences = getSharedPreferences(Const.PREFERENCE_NAME, MODE_PRIVATE);
         tweetText = (EditText)findViewById(R.id.tweetText);
         tweetLength = (TextView)findViewById(R.id.tweetLength);
-        twitterStatus = (Button)findViewById(R.id.twitterStatus);
         tweetButton = (Button)findViewById(R.id.tweetButton);
 
         tweetText.addTextChangedListener(tweetTextWatcher);
@@ -77,30 +74,11 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
-        /**
-         * Handle OAuth Callback
-         */
-        Uri uri = getIntent().getData();
-        if (uri != null && uri.toString().startsWith(Const.CALLBACK_URL)) {
-            String verifier = uri.getQueryParameter(Const.IEXTRA_OAUTH_VERIFIER);
-            try {
-                AccessToken accessToken = twitter.getOAuthAccessToken(requestToken, verifier);
-                SharedPreferences.Editor e = mSharedPreferences.edit();
-                e.putString(Const.PREF_KEY_TOKEN, accessToken.getToken());
-                e.putString(Const.PREF_KEY_SECRET, accessToken.getTokenSecret());
-                e.commit();
-                Toast.makeText(this, "Twitter connected!", Toast.LENGTH_SHORT).show();
-            } catch (Exception e) {
-                Log.e(TAG, e.getMessage());
-                Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
-            }
-        }
+        handleOAuth();
 
-        if(isConnected()) {
-            twitterStatus.setText("Disconnect Twitter");
-        } else {
-            twitterStatus.setText("Connect Twitter");
-        }
+        // invalidate Menu for Android 3.0
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
+            invalidateOptionsMenu();
 
         // start camera
         preview = (SurfaceView) findViewById(R.id.cameraPreview);
@@ -124,6 +102,48 @@ public class MainActivity extends Activity {
             camera.release();
             camera = null;
             inPreview = false;
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater menuInflater = getMenuInflater();
+        menuInflater.inflate(R.menu.main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem loginItem = menu.findItem(R.id.menu_login);
+        MenuItem logoutItem = menu.findItem(R.id.menu_logout);
+
+        if(isConnected()) {
+            loginItem.setEnabled(false);
+            loginItem.setVisible(false);
+            logoutItem.setEnabled(true);
+            logoutItem.setVisible(true);
+        } else {
+            logoutItem.setEnabled(false);
+            logoutItem.setVisible(false);
+            loginItem.setEnabled(true);
+            loginItem.setVisible(true);
+        }
+
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch(item.getItemId()) {
+            case R.id.menu_login:
+                askOAuth();
+                return true;
+            case R.id.menu_logout:
+                disconnectTwitter();
+                Toast.makeText(this, "Twitter disconnected", Toast.LENGTH_SHORT).show();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
     }
 
@@ -158,6 +178,28 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void handleOAuth() {
+        /**
+         * Handle OAuth Callback
+         */
+        Uri uri = getIntent().getData();
+        if (uri != null && uri.toString().startsWith(Const.CALLBACK_URL)) {
+            String verifier = uri.getQueryParameter(Const.IEXTRA_OAUTH_VERIFIER);
+            try {
+                AccessToken accessToken = twitter.getOAuthAccessToken(requestToken, verifier);
+                SharedPreferences.Editor e = mSharedPreferences.edit();
+                e.putString(Const.PREF_KEY_TOKEN, accessToken.getToken());
+                e.putString(Const.PREF_KEY_SECRET, accessToken.getTokenSecret());
+                e.commit();
+
+                Toast.makeText(this, "Twitter connected!", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+                Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
     private void askOAuth() {
         ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
         configurationBuilder.setOAuthConsumerKey(Const.CONSUMER_KEY);
@@ -185,17 +227,6 @@ public class MainActivity extends Activity {
         editor.commit();
     }
     
-    public void clickTwitterConnect(View view) {
-        if(isConnected()) {
-            disconnectTwitter();
-            Toast.makeText(this, "Twitter disconnected", Toast.LENGTH_SHORT).show();
-            twitterStatus.setText("Connect Twitter");
-        } else {
-            askOAuth();
-        }
-    }
-
-
     private int getFrontCameraId() {
         Camera.CameraInfo ci = new Camera.CameraInfo();
         for (int i = 0 ; i < Camera.getNumberOfCameras(); i++) {
